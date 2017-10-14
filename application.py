@@ -5,21 +5,27 @@ from flask import request
 from pprint import pprint
 filename = 'ncaa.dat'
 
+
 # print a nice greeting.
 def say_hello():
     return '<p>Hello NCAA</p>\n'
 
 # print a nice greeting.
+
 def lookup(param, val):
     rows = []
+    error = None
+    query = "%s fields containing \"%s\"" % (param, val)
     for k in database.keys():
-        print k
         if val in database[k][param]:
-            print '------ hit'
             rows.append(database[k])
     if not rows:
-        rows = {'error': 'no %s matches found for "%s"' % (param, val)}
-    return jsonify(rows)
+        error = 'no %s matches found for "%s"' % (param, val)
+
+
+    response = jsonify({'result': rows, 'error': error, 'query': query})
+    return response
+
 
 # some bits of text for the page.
 header_text = '''
@@ -44,12 +50,12 @@ def teamdb():
                            'state': cols[3],
                            'conference': cols[4]
                           }
-    print pprint(db.keys())
     return db
 
 # EB looks for an 'application' callable by default.
 application = Flask(__name__)
 database = teamdb()
+
 
 # add a rule for the index page.
 application.add_url_rule('/', 'index', (lambda: header_text +
