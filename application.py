@@ -13,7 +13,7 @@ def say_hello():
 # print a nice greeting.
 
 def lookup(param, val):
-    rows = []
+    rows = []a
     error = None
     query = "%s fields containing \"%s\"" % (param, val)
     for k in database.keys():
