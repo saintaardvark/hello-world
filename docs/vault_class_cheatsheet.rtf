@@ -1,0 +1,132 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1504\cocoasubrtf830
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset0 Calibri;\f2\fmodern\fcharset0 Courier;
+\f3\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red0\green0\blue0;\red255\green255\blue255;
+\red255\green255\blue255;\red11\green76\blue180;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\csgray\c0;\csgray\c100000;
+\csgenericrgb\c100000\c100000\c100000;\cssrgb\c1961\c38824\c75686;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww16300\viewh12880\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 Step 1\
+\
+Start an EC2 instance \
+Generate SSH Keys, Store it and change permissions since using this key you will be able to ssh to your EC2 instance\
+chmod 400 <your key pem file> \
+SSH to your EC2 instance\
+	If its ubuntu, ssh -i <your key pem file>  ubuntu@public_ip\
+	If its aws ec2, ssh -i <your key pem file>  ec2-user@public_ip\
+\
+Download vault and consul packages and deploy them on your instance. For this lab purposes, you can copy it to your home directory\
+\
+Vault\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f1\fs28 \cf0 \expnd0\expndtw0\kerning0
+https://www.vaultproject.io/intro/getting-started/install.html\
+\
+Consul\
+Click download link on https://www.consul.io/?_ga=2.173585059.1859872733.1509402282-181272121.1507762041\
+\
+Step 2\
+1) Start consul \
+\pard\pardeftab720\sl280\partightenfactor0
+
+\f2\fs24 \cf2 consul agent -server -bootstrap-expect 1 -data-dir /tmp/consul -bind 127.0.0.1\
+
+\f1\fs28 \cf0 \
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf0 2) Create vault_config.hcl configuration file with the following contents and store it in the same directory as Vault binary\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f3\fs22 \cf3 \cb4 \kerning1\expnd0\expndtw0 \CocoaLigature0 \
+disable_mlock = true\
+storage "consul" \{\
+  address = "127.0.0.1:8500"\
+  path = "vault"\
+\}\
+\
+listener "tcp" \{\
+ address = "127.0.0.1:8200"\
+ tls_disable = 1\
+\}\
+\
+3) Start Vault \
+./vault server -config=
+\f1\fs28 \cf0 \cb1 \expnd0\expndtw0\kerning0
+\CocoaLigature1 vault_config.hcl
+\f3\fs22 \cf3 \cb4 \kerning1\expnd0\expndtw0 \CocoaLigature0  &\
+\
+Export the environment variable. \
+export VAULT_ADDR='http://127.0.0.1:8200'\
+\
+\
+4) Initialize Vault and save the unseal keys (5 of them) and root token (Extremely important!!)\
+\
+./vault init\
+\
+5) Unseal Vault (run this command thrice to provide 3 different unseal keys, at the end of which vault will be unsealed.)\
+./vault unseal \
+\
+6) Check the status and make sure sealed status is false. Vault is functional at this point.\
+\
+7) Create your first vault policy \
+First create a file in your home directory and call it \'93my-policy.hcl\'94 with the following contents\
+\
+\
+path "secret/*" \{\
+  capabilities = ["create", "read", "update", "delete", "list"]\
+\}\
+\
+path "auth/token/lookup-self" \{\
+  capabilities = ["read"]\
+\}\
+\
+Load the policy in vault \
+./vault write sys/policy/my-policy rules=@my-policy.hcl\
+\
+8) Write your first secret \
+\cb5 ./vault write secret/seccon value=thisisasecret\
+\
+\
+MOUNTING GITHUB BACKEND TO VAULT\
+\
+9) You will first need to have your personal access token.\
+Go to your github account. 
+\f1 \cf0 \cb1 \expnd0\expndtw0\kerning0
+\CocoaLigature1 you can get your 
+\b personal access token
+\b0  by following these instructions: {\field{\*\fldinst{HYPERLINK "https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/"}}{\fldrslt \cf6 \ul \ulc6 https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/}}\cf6 \ul \ulc6 \
+\
+
+\f3 \cf3 \cb5 \kerning1\expnd0\expndtw0 \ulnone \CocoaLigature0 10) Run the following commands to mouth github auth backend\
+\cb4 ./vault auth-enable github\
+\
+\pard\pardeftab720\sl280\partightenfactor0
+
+\f2\fs24 \cf7 \cb1 \expnd0\expndtw0\kerning0
+\CocoaLigature1 \outl0\strokewidth0 \strokec7 ./vault write auth/github/config organization=testkhamin   (here: testkhamin is the org setup for this lab purposes.)\
+\
+11) Add your github user to the policy you created above\
+vault write auth/github/map/users/<github username> value=my-policy\
+\
+12) Try authenticating to Vault using github\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f3\fs22 \cf3 \cb4 \kerning1\expnd0\expndtw0 \CocoaLigature0 \outl0\strokewidth0 curl http://127.0.0.1:8200/v1/auth/github/login -d '\{ "token": \'93Your Personal access github token here\'93 \}'\
+\
+13) Try retrieving the Vault secret that you created earlier \
+curl -H "X-Vault-Token: <Your token that Vault provided you based on the above login>\'93 -X GET http://127.0.0.1:8200/v1/secret/seccon
+\f2\fs24 \cf7 \cb1 \expnd0\expndtw0\kerning0
+\CocoaLigature1 \outl0\strokewidth0 \strokec7 \
+\pard\pardeftab720\sl280\partightenfactor0
+\cf7 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f3\fs22 \cf3 \cb5 \kerning1\expnd0\expndtw0 \CocoaLigature0 \outl0\strokewidth0 \
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f1\fs28 \cf0 \cb1 \expnd0\expndtw0\kerning0
+\CocoaLigature1 \
+}
